@@ -177,7 +177,7 @@ class Predictor:
         precision_mode = precision_map[self.args.precision]
 
        
-    def run(self, imgs, prompt):
+    def run(self, image, prompt_out):
       
         input_names = self.predictor.get_input_names()
         input_handle1 = self.predictor.get_input_handle(input_names[0])
@@ -185,8 +185,6 @@ class Predictor:
         output_names = self.predictor.get_output_names()
         output_handle = self.predictor.get_output_handle(output_names[0])
        
-
-        image, prompt_out = self._preprocess(imgs, prompt)
         input_handle1.reshape(image.shape)
         input_handle1.copy_from_cpu(image)
         input_handle2.reshape(prompt_out.shape)
@@ -195,8 +193,9 @@ class Predictor:
         self.predictor.run()
 
         results = output_handle.copy_to_cpu()
-
+       
         results = self._postprocess(results)
+    
            
         return results
    

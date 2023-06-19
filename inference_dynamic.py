@@ -214,6 +214,7 @@ class DinoSamInfer():
             boxes.append([x0, y0, x1, y1])
        
         boxes = np.array(boxes)
+     
         transformed_boxes = paddle.to_tensor(self.sam_predictor.transform.apply_boxes(boxes, self.image_pil_size))
  
         seg_masks, _, _ = self.sam_predictor.predict_paddle(

@@ -9,12 +9,36 @@ from PIL import Image, ImageDraw, ImageFont
 from deploy.DINOPredictor import Predictor as DINOPredictor
 from deploy.SAMPredictor import Predictor as SAMPredictor
 import ppgroundingdino.util.logger as logger
+from paddle.utils.cpp_extension import load
+# jit compile custom op
+ms_deformable_attn = load(
+    name="deformable_detr_ops",
+    sources=["./ppgroundingdino/models/GroundingDINO/csrc/ms_deformable_attn_op.cc",
+    "./ppgroundingdino/models/GroundingDINO/csrc/ms_deformable_attn_op.cu"])
 
 def print_arguments(args):
     print('-----------  Running Arguments -----------')
     for arg, value in sorted(vars(args).items()):
         print('%s: %s' % (arg, value))
     print('------------------------------------------')
+
+
+def postprocess(mask):
+    masks = np.array(mask[:,0,:,:])
+    init_mask = np.zeros(masks.shape[-2:])
+
+    for mask in masks:
+        mask = mask.reshape(mask.shape[-2:])
+        mask[mask == False] = 0
+        mask[mask == True] = 1
+        init_mask += mask
+
+    init_mask[init_mask == 0] = 0
+    init_mask[init_mask != 0] = 255
+    
+    init_mask = Image.fromarray(init_mask).convert('L')
+
+    return init_mask
 
 def mask_image(image, mask):
     """Mask an image.
@@ -59,6 +83,7 @@ def main(args):
             if args.run_benchmark and i>=10:
                 autolog.times.start()
             image_pil = dino_pipe.preprocess(args)
+            image_seg = sam_pipe.process.transforms(np.array(image_pil))
             if args.run_benchmark and i>=10:
                 autolog.times.stamp()
             result = dino_pipe.run()
@@ -75,14 +100,12 @@ def main(args):
                 boxes.append([x0, y0, x1, y1])
        
             boxes = np.array(boxes)
-            mask = sam_pipe.run(np.array(image_pil),
-                        {'input_type': args.sam_input_type,
-                        'points': None,
-                        'boxs': boxes})
+            prompt_out = sam_pipe.process.preprocess_prompt(point_coords=None,box=boxes)
+            seg_mask = sam_pipe.run(image_seg,prompt_out)
             if args.run_benchmark and i>=10:
                 autolog.times.stamp()
-            pred_mask = Image.fromarray(mask[0][0].astype(np.uint8), mode='P')
-            image_masked = mask_image(image_pil, pred_mask)
+            init_mask = postprocess(seg_mask)
+            image_masked = mask_image(image_pil, init_mask)
             if args.run_benchmark and i>=10:
                 autolog.times.end(stamp=True)
         if args.run_benchmark:
@@ -104,13 +127,15 @@ def main(args):
         boxes.append([x0, y0, x1, y1])
        
     boxes = np.array(boxes)
-    mask = sam_pipe.run(np.array(image_pil),
-                {'input_type': args.sam_input_type,
-                'points': None,
-                'boxs': boxes})
-    
-    pred_mask = Image.fromarray(mask[0][0].astype(np.uint8), mode='P')
-    image_masked = mask_image(image_pil, pred_mask)
+    image, prompt_out = sam_pipe._preprocess(np.array(image_pil), 
+                        prompts={'input_type': args.sam_input_type,
+                        'points': None,
+                        'boxs': boxes})
+    seg_mask = sam_pipe.run(image,prompt_out)
+  
+    init_mask = postprocess(seg_mask)
+    image_masked = mask_image(image_pil, init_mask)
+  
     image_masked.save(os.path.join(args.output_dir, "image_masked.jpg"))
 
 
