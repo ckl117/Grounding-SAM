@@ -19,9 +19,9 @@ from ppgroundingdino.util.misc import (
 from ppgroundingdino.models.GroundingDINO.bertwarper import generate_masks_with_special_tokens_and_transfer_map
 import ppgroundingdino.util.logger as logger
 
-from segment_anything.predictor import SamPredictor
-from segment_anything.modeling.sam_models import SamVitB, SamVitH, SamVitL
-from segment_anything.build_sam import sam_model_registry
+# from segment_anything.predictor import SamPredictor
+# from segment_anything.build_sam import sam_model_registry
+from segment_anything.modeling.sam_models import SamModel
 
 def plot_boxes_to_image(image_pil, tgt):
     H, W = tgt["size"]
@@ -135,12 +135,8 @@ class DinoSamInfer():
 
         print(f'sam_model_type {args.sam_model_type}')
         print(f'sam_checkpoint_path {args.sam_checkpoint_path}')
-        self.sam_model = eval(args.sam_model_type)(checkpoint=args.sam_checkpoint_path,
-                                  input_type=args.sam_input_type)
+        self.sam_model = SamModel.from_pretrained(args.sam_model_type,input_type=args.sam_input_type)
      
-        # self.sam_model = sam_model_registry[args.sam_model_type](checkpoint=args.sam_checkpoint_path)
-        # self.sam_predictor = SamPredictor(self.sam_model)
-       
     
     def preprocess(self,image_pil):
         # load image
@@ -158,9 +154,7 @@ class DinoSamInfer():
         self.image_pil_size = image_pil.size
 
         image_pil_numpy = np.array(image_pil)
-        print("!!!!!!! pred start")
-        self.sam_model.transforms(image_pil_numpy)
-        print("!!!!!!! pres end")
+        self.image_seg = self.sam_model.transforms(image_pil_numpy)
         return image_pil
 
     def get_grounding_output(self,with_logits=True):
@@ -209,7 +203,7 @@ class DinoSamInfer():
        
         boxes = np.array(boxes)
         transformed_boxes = self.sam_model.preprocess_prompt(point_coords=None, point_labels=None, box=boxes)
-        seg_masks = self.sam_model(prompt=transformed_boxes)
+        seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
         
        
         return seg_masks

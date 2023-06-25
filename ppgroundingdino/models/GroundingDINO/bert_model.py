@@ -101,7 +101,7 @@ class BertSelfAttention(nn.Layer):
             # can concat previous decoder key/value_states to current projected key/value_states (third "elif" case)
             # if encoder bi-directional self-attention `past_key_value` is always `None`
             past_key_value = (key_layer, value_layer)
-
+       
         # Take the dot product between "query" and "key" to get the raw attention scores.
         attention_scores = paddle.matmul(query_layer, key_layer.transpose([0, 1, 3, 2]))
         # return attention_scores

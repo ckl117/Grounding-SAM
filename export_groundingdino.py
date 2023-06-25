@@ -3,19 +3,9 @@ import os
 import paddle
 from paddle.static import InputSpec
 
-from ppgroundingdino.models import build_model
-from ppgroundingdino.util.slconfig import SLConfig
-from ppgroundingdino.util.utils import clean_state_dict
+from ppgroundingdino.models.GroundingDINO.groundingdino import GroundingDinoModel
 
 
-def load_model(model_config_path, model_checkpoint_path):
-    args = SLConfig.fromfile(model_config_path)
-    model = build_model(args)
-    checkpoint = paddle.load(model_checkpoint_path, return_numpy=True)
-    load_res = model.set_state_dict(clean_state_dict(checkpoint))
-    print(load_res)
-    _ = model.eval()
-    return model
 
 def _prune_input_spec(input_spec, program, targets):
     # try to prune static program to figure out pruned input spec
@@ -63,19 +53,20 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
     parser.add_argument("--config_file", "-c", type=str, required=True, help="path to config file")
-    parser.add_argument(
-        "--checkpoint_path", "-p", type=str, required=True, help="path to checkpoint file"
-    )
+    # parser.add_argument(
+    #     "--checkpoint_path", "-p", type=str, required=True, help="path to checkpoint file"
+    # )
     parser.add_argument(
         "--output_dir", "-o", type=str, default="output_groundingdino",  help="output directory"
     )
     args = parser.parse_args()
   
     config_file = args.config_file  # change the path of the model config file
-    checkpoint_path = args.checkpoint_path  # change the path of the model
+    # checkpoint_path = args.checkpoint_path  # change the path of the model
     output_dir = args.output_dir
     # load model
-    model = load_model(config_file, checkpoint_path)
+    model = GroundingDinoModel.from_pretrained(config_file)
+    model.eval()
    
     static_model,input_spec = apply_to_static(model)
     
