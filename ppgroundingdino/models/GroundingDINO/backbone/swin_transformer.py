@@ -20,7 +20,202 @@ from paddle.nn.initializer import Constant
 from ..layers import DropPath, to_2tuple
 from ..initializer import trunc_normal_
 
-from ppgroundingdino.util.misc import NestedTensor
+from paddlenlp.transformers.configuration_utils import PretrainedConfig
+from paddlenlp.transformers.model_utils import PretrainedModel, register_base_model
+
+""" swin_transformer model configuration"""
+__all__ = ["SWIN_TRANSFORMER_PRETRAINED_INIT_CONFIGURATION", "SwinTransformerConfig", "SWIN_TRANSFORMER_PRETRAINED_RESOURCE_FILES_MAP"]
+
+
+SWIN_TRANSFORMER_PRETRAINED_INIT_CONFIGURATION = {
+    "swin_T_224_1k": {
+        "in_chans": 3,
+        "embed_dim": 96, 
+        "depths": [2, 2, 6, 2], 
+        "num_heads": [3, 6, 12, 24],
+        "window_size": 7,
+        "pretrain_img_size": 224,
+        "patch_size": 4,
+        "out_indices": (0, 1, 2, 3),
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "qk_scale": None,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
+        "drop_path_rate": 0.2,
+        "norm_layer": "LayerNorm",
+        "ape": False,
+        "patch_norm": True,
+        "frozen_stages": -1,
+        "dilation": False,
+        "use_checkpoint": False,
+
+
+    },
+    "swin_B_224_22k": {
+        "in_chans": 3,
+        "embed_dim": 128, 
+        "depths": [2, 2, 18, 2], 
+        "num_heads": [4, 8, 16, 32], 
+        "window_size": 7,
+        "pretrain_img_size": 224,
+        "patch_size": 4,
+        "out_indices": (0, 1, 2, 3),
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "qk_scale": None,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
+        "drop_path_rate": 0.2,
+        "norm_layer": "LayerNorm",
+        "ape": False,
+        "patch_norm": True,
+        "frozen_stages": -1,
+        "dilation": False,
+        "use_checkpoint": False
+    },
+    "swin_B_384_22k": {
+        "in_chans": 3,
+        "embed_dim": 128, 
+        "depths": [2, 2, 18, 2], 
+        "num_heads": [4, 8, 16, 32], 
+        "window_size": 12,
+        "pretrain_img_size": 384,
+        "patch_size": 4,
+        "out_indices": (0, 1, 2, 3),
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "qk_scale": None,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
+        "drop_path_rate": 0.2,
+        "norm_layer": "LayerNorm",
+        "ape": False,
+        "patch_norm": True,
+        "frozen_stages": -1,
+        "dilation": False,
+        "use_checkpoint":False
+    },
+    "swin_L_224_22k": {
+        "in_chans": 3,
+        "embed_dim": 192, 
+        "depths": [2, 2, 18, 2], 
+        "num_heads": [6, 12, 24, 48], 
+        "window_size": 7,
+        "pretrain_img_size": 224,
+        "patch_size": 4,
+        "out_indices": (0, 1, 2, 3),
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "qk_scale": None,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
+        "drop_path_rate": 0.2,
+        "norm_layer": "LayerNorm",
+        "ape": False,
+        "patch_norm": True,
+        "frozen_stages": -1,
+        "dilation": False,
+        "use_checkpoint": False
+    },
+    "swin_L_384_22k":{
+        "in_chans": 3,
+        "embed_dim": 192, 
+        "depths": [2, 2, 18, 2],
+        "num_heads": [6, 12, 24, 48], 
+        "window_size": 12,
+        "pretrain_img_size": 384,
+        "patch_size": 4,
+        "out_indices": (0, 1, 2, 3),
+        "mlp_ratio": 4.0,
+        "qkv_bias": True,
+        "qk_scale": None,
+        "drop_rate": 0.0,
+        "attn_drop_rate": 0.0,
+        "drop_path_rate": 0.2,
+        "norm_layer": "LayerNorm",
+        "ape": False,
+        "patch_norm": True,
+        "frozen_stages": -1,
+        "dilation": False,
+        "use_checkpoint": False
+    },
+    
+}
+
+SWIN_TRANSFORMER_PRETRAINED_RESOURCE_FILES_MAP = {
+    "model_state": {
+        "swin_T_224_1k": "https://bj.bcebos.com/v1/paddledet/models/pretrained/swin_tiny_patch4_window7_224_22kto1k_pretrained.pdparams",
+        "swin_B_224_22k": "https://bj.bcebos.com/v1/paddledet/models/pretrained/swin_base_patch4_window7_224_22kto1k_pretrained.pdparams",
+        "swin_B_384_22k": "https://bj.bcebos.com/v1/paddledet/models/pretrained/swin_base_patch4_window12_384_22kto1k_pretrained.pdparams",
+        "swin_L_224_22k": "https://bj.bcebos.com/v1/paddledet/models/pretrained/swin_large_patch4_window7_224_22kto1k_pretrained.pdparams",
+        "swin_L_384_22k": "https://bj.bcebos.com/v1/paddledet/models/pretrained/swin_large_patch4_window12_384_22kto1k_pretrained.pdparams",
+    }
+}
+
+
+class SwinTransformerConfig(PretrainedConfig):
+  
+    model_type = "swintransformer"
+    pretrained_init_configuration = SWIN_TRANSFORMER_PRETRAINED_INIT_CONFIGURATION
+
+    def __init__(
+        self,
+        in_chans=3,
+        embed_dim=128, 
+        depths=[2, 2, 18, 2], 
+        num_heads=[4, 8, 16, 32], 
+        window_size=7,
+        pretrain_img_size=224,
+        patch_size=4,
+        mlp_ratio=4.0,
+        qkv_bias=True,
+        qk_scale=None,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.2,
+        norm_layer=nn.LayerNorm,
+        ape=False,
+        patch_norm=True,
+        out_indices=(0, 1, 2, 3),
+        frozen_stages=-1,
+        dilation=False,
+        use_checkpoint=False
+    ):
+        super().__init__()
+        self.in_chans = in_chans
+        self.embed_dim = embed_dim
+        self.depths = depths
+        self.num_heads = num_heads
+        self.window_size = window_size
+        self.pretrain_img_size = pretrain_img_size
+        self.patch_size = 4
+        self.mlp_ratio = mlp_ratio
+        self.qkv_bias = qkv_bias
+        self.qk_scale = qk_scale
+        self.drop_rate = drop_rate
+        self.attn_drop_rate = attn_drop_rate
+        self.drop_path_rate = drop_path_rate
+        self.norm_layer = norm_layer
+        self.ape = ape
+        self.patch_norm = patch_norm
+        self.out_indices = out_indices
+        self.frozen_stages = frozen_stages
+        self.dilation = dilation
+        self.use_checkpoint = use_checkpoint
+
+class SwinTransformerPretrainedModel(PretrainedModel):
+    """
+    See :class:`~paddlenlp.transformers.model_utils.PretrainedModel` for more details.
+    """
+
+    model_config_file = "config.json"
+    config_class = SwinTransformerConfig
+    resource_files_names = {"model_state": "model_state.pdparams"}
+    base_model_prefix = "swintransformer"
+
+    pretrained_init_configuration = SWIN_TRANSFORMER_PRETRAINED_INIT_CONFIGURATION
+    pretrained_resource_files_map = SWIN_TRANSFORMER_PRETRAINED_RESOURCE_FILES_MAP
 
 
 class Mlp(nn.Layer):
@@ -124,8 +319,7 @@ class WindowAttention(nn.Layer):
         relative_coords[:, :, 0] += self.window_size[0] - 1  # shift to start from 0
         relative_coords[:, :, 1] += self.window_size[1] - 1
         relative_coords[:, :, 0] *= 2 * self.window_size[1] - 1
-        relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
-        self.relative_position_index = relative_position_index
+        self.relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
 
         self.qkv = nn.Linear(dim, dim * 3, bias_attr=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
@@ -261,7 +455,6 @@ class SwinTransformerBlock(nn.Layer):
         pad_b = (self.window_size - H % self.window_size) % self.window_size
         pad_list = paddle.to_tensor([pad_l, pad_r, pad_t,pad_b],dtype="int32")
         x = F.pad(x,pad_list,data_format='NHWC')
-        # x = F.pad(x, [0, pad_l, 0, pad_b, 0, pad_r, 0, pad_t])
         _, Hp, Wp, _ = x.shape
 
         # cyclic shift
@@ -423,9 +616,6 @@ class BasicLayer(nn.Layer):
         """
         
         # calculate attention mask for SW-MSA
-        # Hp = int(np.ceil(H / self.window_size)) * self.window_size
-        # Wp = int(np.ceil(W / self.window_size)) * self.window_size
-        # img_mask = paddle.zeros((1, Hp, Wp, 1), dtype=paddle.float32)  # 1 Hp Wp 1
         Hp = paddle.ceil(paddle.to_tensor(H / self.window_size)).astype("int32") * self.window_size
         Wp = paddle.ceil(paddle.to_tensor(W / self.window_size)).astype("int32") * self.window_size
         img_mask = paddle.zeros((1,Hp,Wp,1), dtype=paddle.float32)  # 1 Hp Wp 1
@@ -509,102 +699,58 @@ class PatchEmbed(nn.Layer):
 
         return x
 
-
-class SwinTransformer(nn.Layer):
+@register_base_model
+class SwinTransformerModel(SwinTransformerPretrainedModel):
     """Swin Transformer backbone.
         A PyTorch impl of : `Swin Transformer: Hierarchical Vision Transformer using Shifted Windows`  -
           https://arxiv.org/pdf/2103.14030
-    Args:
-        pretrain_img_size (int): Input image size for training the pretrained model,
-            used in absolute postion embedding. Default 224.
-        patch_size (int | tuple(int)): Patch size. Default: 4.
-        in_chans (int): Number of input image channels. Default: 3.
-        embed_dim (int): Number of linear projection output channels. Default: 96.
-        depths (tuple[int]): Depths of each Swin Transformer stage.
-        num_heads (tuple[int]): Number of attention head of each stage.
-        window_size (int): Window size. Default: 7.
-        mlp_ratio (float): Ratio of mlp hidden dim to embedding dim. Default: 4.
-        qkv_bias (bool): If True, add a learnable bias to query, key, value. Default: True
-        qk_scale (float): Override default qk scale of head_dim ** -0.5 if set.
-        drop_rate (float): Dropout rate.
-        attn_drop_rate (float): Attention dropout rate. Default: 0.
-        drop_path_rate (float): Stochastic depth rate. Default: 0.2.
-        norm_layer (nn.Module): Normalization layer. Default: nn.LayerNorm.
-        ape (bool): If True, add absolute position embedding to the patch embedding. Default: False.
-        patch_norm (bool): If True, add normalization after patch embedding. Default: True.
-        out_indices (Sequence[int]): Output from which stages.
-        frozen_stages (int): Stages to be frozen (stop grad and set eval mode).
-            -1 means not freezing any parameters.
-        use_checkpoint (bool): Whether to use checkpointing to save memory. Default: False.
-        dilation (bool): if True, the output size if 16x downsample, ow 32x downsample.
     """
 
-    def __init__(
-        self,
-        pretrain_img_size=224,
-        patch_size=4,
-        in_chans=3,
-        embed_dim=96,
-        depths=[2, 2, 6, 2],
-        num_heads=[3, 6, 12, 24],
-        window_size=7,
-        mlp_ratio=4.0,
-        qkv_bias=True,
-        qk_scale=None,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.2,
-        norm_layer=nn.LayerNorm,
-        ape=False,
-        patch_norm=True,
-        out_indices=(0, 1, 2, 3),
-        frozen_stages=-1,
-        dilation=False,
-        use_checkpoint=False,
-    ):
-        super().__init__()
-
-        self.pretrain_img_size = pretrain_img_size
-        self.num_layers = len(depths)
-        self.embed_dim = embed_dim
-        self.ape = ape
-        self.patch_norm = patch_norm
-        self.out_indices = out_indices
-        self.frozen_stages = frozen_stages
-        self.dilation = dilation
-
-        # if use_checkpoint:
-        #     print("use_checkpoint!!!!!!!!!!!!!!!!!!!!!!!!")
+    def __init__(self,config: SwinTransformerConfig):
+        super(SwinTransformerModel,self).__init__(config)
+      
+        self.pretrain_img_size = config.pretrain_img_size
+        self.num_layers = len(config.depths)
+        self.in_chans = config.in_chans
+        self.embed_dim = config.embed_dim
+        self.ape = config.ape
+        self.patch_norm = config.patch_norm
+        self.norm_layer = nn.LayerNorm 
+        self.out_indices = config.out_indices
+        self.frozen_stages = config.frozen_stages
+        self.dilation = config.dilation
+        self.patch_size = config.patch_size
+        self.patch_norm = config.patch_norm
+        self.drop_path_rate = config.drop_path_rate
 
         # split image into non-overlapping patches
         self.patch_embed = PatchEmbed(
-            patch_size=patch_size,
-            in_chans=in_chans,
-            embed_dim=embed_dim,
-            norm_layer=norm_layer if self.patch_norm else None,
+            patch_size=self.patch_size,
+            in_chans=self.in_chans,
+            embed_dim=self.embed_dim,
+            norm_layer=self.norm_layer if self.patch_norm else None,
         )
 
         # absolute position embedding
         if self.ape:
-            pretrain_img_size = to_2tuple(pretrain_img_size)
-            patch_size = to_2tuple(patch_size)
+            patch_size = to_2tuple(self.patch_size)
             patches_resolution = [
-                pretrain_img_size[0] // patch_size[0],
-                pretrain_img_size[1] // patch_size[1],
+                self.pretrain_img_size[0] // self.patch_size[0],
+                self.pretrain_img_size[1] // self.patch_size[1],
             ]
 
             self.absolute_pos_embed = self.create_parameter(
-                shape=[1, embed_dim, patches_resolution[0], patches_resolution[1]],
+                shape=[1, self.embed_dim, patches_resolution[0], patches_resolution[1]],
                 dtype=paddle.float32,
                 default_initializer=Constant(0.)
             )
             trunc_normal_(self.absolute_pos_embed, std=0.02)
 
-        self.pos_drop = nn.Dropout(p=drop_rate)
+        self.pos_drop = nn.Dropout(p=config.drop_rate)
 
         # stochastic depth
         dpr = [
-            x.item() for x in paddle.linspace(0, drop_path_rate, sum(depths))
+            x.item() for x in paddle.linspace(0, config.drop_path_rate, sum(config.depths))
         ]  # stochastic depth decay rule
 
         # build layers
@@ -612,27 +758,25 @@ class SwinTransformer(nn.Layer):
         # prepare downsample list
         downsamplelist = [PatchMerging for i in range(self.num_layers)]
         downsamplelist[-1] = None
-        num_features = [int(embed_dim * 2**i) for i in range(self.num_layers)]
+        num_features = [int(self.embed_dim * 2**i) for i in range(self.num_layers)]
         if self.dilation:
             downsamplelist[-2] = None
-            num_features[-1] = int(embed_dim * 2 ** (self.num_layers - 1)) // 2
+            num_features[-1] = int(self.embed_dim * 2 ** (self.num_layers - 1)) // 2
         for i_layer in range(self.num_layers):
             layer = BasicLayer(
-                # dim=int(embed_dim * 2 ** i_layer),
                 dim=num_features[i_layer],
-                depth=depths[i_layer],
-                num_heads=num_heads[i_layer],
-                window_size=window_size,
-                mlp_ratio=mlp_ratio,
-                qkv_bias=qkv_bias,
-                qk_scale=qk_scale,
-                drop=drop_rate,
-                attn_drop=attn_drop_rate,
-                drop_path=dpr[sum(depths[:i_layer]) : sum(depths[: i_layer + 1])],
-                norm_layer=norm_layer,
-                # downsample=PatchMerging if (i_layer < self.num_layers - 1) else None,
+                depth=config.depths[i_layer],
+                num_heads=config.num_heads[i_layer],
+                window_size=config.window_size,
+                mlp_ratio=config.mlp_ratio,
+                qkv_bias=config.qkv_bias,
+                qk_scale=config.qk_scale,
+                drop=config.drop_rate,
+                attn_drop=config.attn_drop_rate,
+                drop_path=dpr[sum(config.depths[:i_layer]) : sum(config.depths[: i_layer + 1])],
+                norm_layer=self.norm_layer,
                 downsample=downsamplelist[i_layer],
-                use_checkpoint=use_checkpoint,
+                use_checkpoint=config.use_checkpoint,
             )
             self.layers.append(layer)
 
@@ -640,8 +784,8 @@ class SwinTransformer(nn.Layer):
         self.num_features = num_features
 
         # add a norm layer for each output
-        for i_layer in out_indices:
-            layer = norm_layer(num_features[i_layer])
+        for i_layer in self.out_indices:
+            layer = self.norm_layer(num_features[i_layer])
             layer_name = f"norm{i_layer}"
             self.add_sublayer(layer_name, layer)
 
@@ -723,8 +867,7 @@ class SwinTransformer(nn.Layer):
         #       torch.Size([2, 768, 64, 64]), torch.Size([2, 1536, 32, 32])]
         return tuple(outs)
 
-    # def forward(self, tensor_list: NestedTensor):
-    def forward(self, x:paddle.Tensor, m:paddle.Tensor):
+    def forward_with_mask(self, x:paddle.Tensor, m:paddle.Tensor):
         # x = tensor_list.tensors
 
         """Forward function."""
@@ -763,59 +906,17 @@ class SwinTransformer(nn.Layer):
         feat_dict = []
         mask_dict = []
         for idx, out_i in enumerate(outs):
-            # m = tensor_list.mask
             assert m is not None
             mask = F.interpolate(m[None].cast(paddle.float32), size=out_i.shape[-2:]).cast(paddle.bool)[0]
-            # outs_dict[idx] = NestedTensor(out_i, mask)
             feat_dict.append(out_i)
             mask_dict.append(mask)
 
         return feat_dict,mask_dict
+    
+    def forward(self, x:paddle.Tensor, m=None):
+        if m is not None:
+            return self.forward_with_mask(x,m)
+        else:
+            return self.forward_raw(x)
 
-    def train(self, mode=True):
-        """Convert the model into training mode while keep layers freezed."""
-        super(SwinTransformer, self).train(mode)
-        self._freeze_stages()
-
-
-def build_swin_transformer(modelname, pretrain_img_size, **kw):
-    assert modelname in [
-        "swin_T_224_1k",
-        "swin_B_224_22k",
-        "swin_B_384_22k",
-        "swin_L_224_22k",
-        "swin_L_384_22k",
-    ]
-
-    model_para_dict = {
-        "swin_T_224_1k": dict(
-            embed_dim=96, depths=[2, 2, 6, 2], num_heads=[3, 6, 12, 24], window_size=7
-        ),
-        "swin_B_224_22k": dict(
-            embed_dim=128, depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32], window_size=7
-        ),
-        "swin_B_384_22k": dict(
-            embed_dim=128, depths=[2, 2, 18, 2], num_heads=[4, 8, 16, 32], window_size=12
-        ),
-        "swin_L_224_22k": dict(
-            embed_dim=192, depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48], window_size=7
-        ),
-        "swin_L_384_22k": dict(
-            embed_dim=192, depths=[2, 2, 18, 2], num_heads=[6, 12, 24, 48], window_size=12
-        ),
-    }
-    kw_cgf = model_para_dict[modelname]
-    kw_cgf.update(kw)
-    model = SwinTransformer(pretrain_img_size=pretrain_img_size, **kw_cgf)
-    return model
-
-
-if __name__ == "__main__":
-    model = build_swin_transformer("swin_L_384_22k", 384, dilation=True)
-    x = paddle.rand([2, 3, 1024, 1024])
-    y = model.forward_raw(x)
-    import ipdb
-
-    ipdb.set_trace()
-    x = paddle.rand([2, 3, 384, 384])
-    y = model.forward_raw(x)
+ 

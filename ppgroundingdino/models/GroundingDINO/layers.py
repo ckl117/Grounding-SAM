@@ -235,9 +235,9 @@ def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: b
         return x
     keep_prob = 1 - drop_prob
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
-    random_tensor = paddle.bernoulli(paddle.full(shape, keep_prob, dtype=x.dtypes))
+    random_tensor = paddle.bernoulli(paddle.full(shape, keep_prob, dtype=x.dtype))
     if keep_prob > 0.0 and scale_by_keep:
-        random_tensor = paddle.divide(random_tensor, keep_prob)
+        random_tensor = paddle.divide(random_tensor, paddle.to_tensor(keep_prob))
     return x * random_tensor
 
 

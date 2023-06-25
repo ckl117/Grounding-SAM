@@ -59,7 +59,6 @@ class SAM(nn.Layer):
         assert input_type != None, "input_type is None, but it is required."
         self.input_type = input_type
         self.set_image = False
-
         self.image_encoder = ImageEncoderViT(
             depth=encoder_depth,
             embed_dim=encoder_embed_dim,
@@ -152,8 +151,10 @@ class SAM(nn.Layer):
         self.original_size = original_image_size
         self.input_size = tuple(transformed_image.shape[-2:])
         input_image = preprocess(transformed_image)
+        self.features = self.image_encoder(input_image)
+        self.set_image = True
 
-        return input_image
+       #return input_image
 
     def preprocess_prompt(self, point_coords=None, point_labels=None, box=None):
         # Transform input prompts
@@ -222,7 +223,7 @@ class SAM(nn.Layer):
 
         return masks
 
-    def prompt_forward_point(self, x, coords_paddle):
+    def prompt_forward_point(self, x=None, coords_paddle=None):
         labels_paddle = np.array([1])
         labels_paddle = paddle.to_tensor(labels_paddle).cast('int32')
         labels_paddle = labels_paddle[None, :]
@@ -254,17 +255,17 @@ class SAM(nn.Layer):
 
         return low_res_masks, (a, b, c)
 
-    def prompt_forward_box(self, x, box_paddle):
-        if self.set_image == False:
+    def prompt_forward_box(self, x=None, box_paddle=None):
+        if self.set_image == False and x is not None:
             self.features = self.image_encoder(x)
             self.set_image = True
-
+            print("!!!!!!!!")
         # Embed prompts
         sparse_embeddings, dense_embeddings = self.prompt_encoder(
             points=None,
             boxes=box_paddle,
             masks=None, )
-     
+        print("embed")
         # Predict masks
         low_res_masks, iou_predictions = self.mask_decoder(
             image_embeddings=self.features,
@@ -301,11 +302,11 @@ class SAM(nn.Layer):
 
         return low_res_masks, iou_predictions  # (64, 3) # low_res_masks,
 
-    def forward(self, img, prompt):
+    def forward(self, img=None, prompt=None):
         if self.input_type == 'points':
-            masks = self.prompt_forward_point(img, prompt)
+            masks = self.prompt_forward_point(x=img, coords_paddle=prompt)
         elif self.input_type == 'boxs':
-            masks = self.prompt_forward_box(img, prompt)
+            masks = self.prompt_forward_box(x=img, box_paddle=prompt)
         elif self.input_type == 'points_grid':
             masks, iou_predictions = self.full_mask_forward(img, prompt)
             return masks, iou_predictions

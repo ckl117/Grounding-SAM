@@ -8,7 +8,7 @@ import paddle.nn.functional as F
 from PIL import Image, ImageDraw, ImageFont
 
 import ppgroundingdino.datasets.transforms as T
-from ppgroundingdino.models import build_model
+from ppgroundingdino.models.GroundingDINO.groundingdino import GroundingDinoModel
 from ppgroundingdino.util import box_ops,get_tokenlizer
 from ppgroundingdino.util.slconfig import SLConfig
 from ppgroundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
@@ -89,14 +89,6 @@ def load_image(image_pil):
     return image
 
 
-def load_model(model_config_path, model_checkpoint_path):
-    args = SLConfig.fromfile(model_config_path)
-    model = build_model(args)
-    checkpoint = paddle.load(model_checkpoint_path, return_numpy=True)
-    load_res = model.set_state_dict(clean_state_dict(checkpoint))
-    print(load_res)
-    _ = model.eval()
-    return model
 
 def preprocess_text(model,text):
     max_text_len = model.max_text_len
@@ -137,16 +129,17 @@ class DinoSamInfer():
         self.text_threshold = args.text_threshold
         self.box_threshold = args.box_threshold
         # load model
-        print(f'dino_model {args.dino_config_file}')
-        print(f'dino_checkpoint_path {args.dino_checkpoint_path}')
-        self.dino_model = load_model(args.dino_config_file, args.dino_checkpoint_path)
+        print(f'dino_model {args.dino_type}')
+        self.dino_model = GroundingDinoModel.from_pretrained(args.dino_type)
+        self.dino_model.eval()
 
         print(f'sam_model_type {args.sam_model_type}')
         print(f'sam_checkpoint_path {args.sam_checkpoint_path}')
-        # self.sam_model = eval(args.sam_model_type)(checkpoint=args.sam_checkpoint_path,
-        #                           input_type=args.sam_input_type)
-        self.sam_model = sam_model_registry[args.sam_model_type](checkpoint=args.sam_checkpoint_path)
-        self.sam_predictor = SamPredictor(self.sam_model)
+        self.sam_model = eval(args.sam_model_type)(checkpoint=args.sam_checkpoint_path,
+                                  input_type=args.sam_input_type)
+     
+        # self.sam_model = sam_model_registry[args.sam_model_type](checkpoint=args.sam_checkpoint_path)
+        # self.sam_predictor = SamPredictor(self.sam_model)
        
     
     def preprocess(self,image_pil):
@@ -165,8 +158,9 @@ class DinoSamInfer():
         self.image_pil_size = image_pil.size
 
         image_pil_numpy = np.array(image_pil)
-        self.sam_predictor.set_image(image_pil_numpy)
-
+        print("!!!!!!! pred start")
+        self.sam_model.transforms(image_pil_numpy)
+        print("!!!!!!! pres end")
         return image_pil
 
     def get_grounding_output(self,with_logits=True):
@@ -214,21 +208,15 @@ class DinoSamInfer():
             boxes.append([x0, y0, x1, y1])
        
         boxes = np.array(boxes)
-     
-        transformed_boxes = paddle.to_tensor(self.sam_predictor.transform.apply_boxes(boxes, self.image_pil_size))
- 
-        seg_masks, _, _ = self.sam_predictor.predict_paddle(
-            point_coords=None, 
-            point_labels=None, 
-            boxes=transformed_boxes,
-            multimask_output=False)
-      
+        transformed_boxes = self.sam_model.preprocess_prompt(point_coords=None, point_labels=None, box=boxes)
+        seg_masks = self.sam_model(prompt=transformed_boxes)
+        
        
         return seg_masks
 
     def postprocess(self,mask):
-        #init_mask = self.sam_model.postprocess(mask)
-        masks = np.array(mask)
+        mask = self.sam_model.postprocess(mask)
+        masks = np.array(mask[:,0,:,:])
         init_mask = np.zeros(masks.shape[-2:])
         for mask in masks:
             mask = mask.reshape(mask.shape[-2:])
@@ -246,10 +234,7 @@ class DinoSamInfer():
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("Grounding DINO example", add_help=True)
-    parser.add_argument("--dino_config_file", "-dc", type=str, required=True, help="path to config file")
-    parser.add_argument(
-        "--dino_checkpoint_path", "-dp", type=str, required=True, help="path to checkpoint file"
-    )
+    parser.add_argument("--dino_type", "-dt", type=str, required=True, help="path to config file")
     parser.add_argument(
         "--sam_model_type",
         #choices=['SamVitL', 'SamVitB', 'SamVitH'],

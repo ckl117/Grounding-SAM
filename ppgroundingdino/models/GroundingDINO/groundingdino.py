@@ -1,111 +1,94 @@
-# ------------------------------------------------------------------------
-# Grounding DINO
-# url: https://github.com/IDEA-Research/GroundingDINO
-# Copyright (c) 2023 IDEA. All Rights Reserved.
-# Licensed under the Apache License, Version 2.0 [see LICENSE for details]
-# ------------------------------------------------------------------------
-# Conditional DETR model and criterion classes.
-# Copyright (c) 2021 Microsoft. All Rights Reserved.
-# Licensed under the Apache License, Version 2.0 [see LICENSE for details]
-# ------------------------------------------------------------------------
-# Modified from DETR (https://github.com/facebookresearch/detr)
-# Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
-# ------------------------------------------------------------------------
-# Modified from Deformable DETR (https://github.com/fundamentalvision/Deformable-DETR)
-# Copyright (c) 2020 SenseTime. All Rights Reserved.
-# ------------------------------------------------------------------------
+# Copyright (c) 2020 PaddlePaddle Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from __future__ import annotations
+
+import warnings
 import copy
-from typing import List
+from typing import Optional, Tuple
 
 import paddle
 import paddle.nn as nn
 import paddle.nn.functional as F
+from paddle import Tensor
+from paddle.nn import Layer
+
+
+from paddlenlp.transformers.model_utils import PretrainedModel, register_base_model
 from .initializer import constant_, xavier_uniform_
 
-from ppgroundingdino.util import box_ops, get_tokenlizer
-from ppgroundingdino.util.misc import (
-    NestedTensor,
-    accuracy,
-    get_world_size,
-    interpolate,
-    inverse_sigmoid,
-    is_dist_avail_and_initialized,
-    nested_tensor_from_tensor_list,
-)
-from ppgroundingdino.util.utils import get_phrases_from_posmap
-from ppgroundingdino.util.visualizer import COCOVisualizer
-from ppgroundingdino.util.vl_utils import create_positive_map_from_span
+from ppgroundingdino.util import  get_tokenlizer
+from ppgroundingdino.util.misc import inverse_sigmoid
 
-from ..registry import MODULE_BUILD_FUNCS
-from .backbone import build_backbone
+from .utils import MLP, ContrastiveEmbed
+
 from .bertwarper import (
     BertModelWarper,
     generate_masks_with_special_tokens,
     generate_masks_with_special_tokens_and_transfer_map,
 )
+
+from .configuration import (
+    GROUNDINGDINO_PRETRAINED_INIT_CONFIGURATION,
+    GROUNDINGDINO_PRETRAINED_RESOURCE_FILES_MAP,
+    GroundingDinoConfig,
+)
+from .backbone import build_backbone
 from .transformer import build_transformer
-from .utils import MLP, ContrastiveEmbed, sigmoid_focal_loss
 
 
-class GroundingDINO(nn.Layer):
-    """This is the Cross-Attention Detector module that performs object detection"""
+__all__ = [
+    "GroundingDinoModel",
+    "GroundingDinoPretrainedModel",
+]
 
-    def __init__(
-        self,
-        backbone,
-        transformer,
-        num_queries,
-        aux_loss=False,
-        iter_update=False,
-        query_dim=2,
-        num_feature_levels=1,
-        nheads=8,
-        # two stage
-        two_stage_type="no",  # ['no', 'standard']
-        dec_pred_bbox_embed_share=True,
-        two_stage_class_embed_share=True,
-        two_stage_bbox_embed_share=True,
-        num_patterns=0,
-        dn_number=100,
-        dn_box_noise_scale=0.4,
-        dn_label_noise_ratio=0.5,
-        dn_labelbook_size=100,
-        text_encoder_type="bert-base-uncased",
-        sub_sentence_present=True,
-        max_text_len=256,
-    ):
-        """Initializes the model.
-        Parameters:
-            backbone: torch module of the backbone to be used. See backbone.py
-            transformer: torch module of the transformer architecture. See transformer.py
-            num_queries: number of object queries, ie detection slot. This is the maximal number of objects
-                         Conditional DETR can detect in a single image. For COCO, we recommend 100 queries.
-            aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
-        """
-        super().__init__()
-        self.num_queries = num_queries
-        self.transformer = transformer
-        self.hidden_dim = hidden_dim = transformer.d_model
-        self.num_feature_levels = num_feature_levels
-        self.nheads = nheads
-        self.max_text_len = 256
-        self.sub_sentence_present = sub_sentence_present
 
-        # setting query dim
-        self.query_dim = query_dim
-        assert query_dim == 4
+class GroundingDinoPretrainedModel(PretrainedModel):
+    """
+    See :class:`~paddlenlp.transformers.model_utils.PretrainedModel` for more details.
+    """
 
-        # for dn training
-        self.num_patterns = num_patterns
-        self.dn_number = dn_number
-        self.dn_box_noise_scale = dn_box_noise_scale
-        self.dn_label_noise_ratio = dn_label_noise_ratio
-        self.dn_labelbook_size = dn_labelbook_size
+    model_config_file = "config.json"
+    config_class = GroundingDinoConfig
+    resource_files_names = {"model_state": "model_state.pdparams"}
+    base_model_prefix = "groundding"
+
+    pretrained_init_configuration = GROUNDINGDINO_PRETRAINED_INIT_CONFIGURATION
+    pretrained_resource_files_map = GROUNDINGDINO_PRETRAINED_RESOURCE_FILES_MAP
+
+@register_base_model
+class GroundingDinoModel(GroundingDinoPretrainedModel):
+    """
+    Args:
+        config (:class:`GroundingDinoConfig`):
+            An instance of BertConfig used to construct BertModel.
+    """
+
+    def __init__(self, config: GroundingDinoConfig):
+        super(GroundingDinoModel, self).__init__(config)
+        
+        self.query_dim = config.query_dim
+        self.backbone = build_backbone(config)
+        self.transformer = build_transformer(config)
+        self.hidden_dim = hidden_dim = self.transformer.d_model
+        self.num_feature_levels = config.num_feature_levels
+        self.nheads = config.nheads
+        self.max_text_len = config.max_text_len
+        self.sub_sentence_present = config.sub_sentence_present
 
         # bert
-        self.tokenizer = get_tokenlizer.get_tokenlizer(text_encoder_type)
-        self.bert = get_tokenlizer.get_pretrained_language_model(text_encoder_type)
-
+        self.tokenizer = get_tokenlizer.get_tokenlizer(config.text_encoder_type)
+        self.bert = get_tokenlizer.get_pretrained_language_model(config.text_encoder_type)
         self.bert.pooler.dense.weight.stop_gradient = True
         self.bert.pooler.dense.bias.stop_gradient = True
         self.bert = BertModelWarper(bert_model=self.bert)
@@ -113,24 +96,23 @@ class GroundingDINO(nn.Layer):
         self.feat_map = nn.Linear(self.bert.config.hidden_size, self.hidden_dim, bias_attr=True)
         constant_(self.feat_map.bias, 0)
         xavier_uniform_(self.feat_map.weight)
-        # freeze
 
-        # special tokens
+          # special tokens
         self.specical_tokens = self.tokenizer.convert_tokens_to_ids(["[CLS]", "[SEP]", ".", "?"])
 
         # prepare input projection layers
-        if num_feature_levels > 1:
-            num_backbone_outs = len(backbone.num_channels)
+        if config.num_feature_levels > 1:
+            num_backbone_outs = len(self.backbone.num_channels)
             input_proj_list = []
             for _ in range(num_backbone_outs):
-                in_channels = backbone.num_channels[_]
+                in_channels = self.backbone.num_channels[_]
                 input_proj_list.append(
                     nn.Sequential(
                         nn.Conv2D(in_channels, hidden_dim, kernel_size=1),
                         nn.GroupNorm(32, hidden_dim),
                     )
                 )
-            for _ in range(num_feature_levels - num_backbone_outs):
+            for _ in range(config.num_feature_levels - num_backbone_outs):
                 input_proj_list.append(
                     nn.Sequential(
                         nn.Conv2D(in_channels, hidden_dim, kernel_size=3, stride=2, padding=1),
@@ -144,54 +126,44 @@ class GroundingDINO(nn.Layer):
             self.input_proj = nn.LayerList(
                 [
                     nn.Sequential(
-                        nn.Conv2D(backbone.num_channels[-1], hidden_dim, kernel_size=1),
+                        nn.Conv2D(self.backbone.num_channels[-1], hidden_dim, kernel_size=1),
                         nn.GroupNorm(32, hidden_dim),
                     )
                 ]
             )
-
-        self.backbone = backbone
-        self.aux_loss = aux_loss
-        self.box_pred_damping = box_pred_damping = None
-
-        self.iter_update = iter_update
-        assert iter_update, "Why not iter_update?"
-
-        # prepare pred layers
-        self.dec_pred_bbox_embed_share = dec_pred_bbox_embed_share
-        # prepare class & box embed
+        
+         # prepare class & box embed
         _class_embed = ContrastiveEmbed()
 
         _bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)
         constant_(_bbox_embed.layers[-1].weight, 0)
         constant_(_bbox_embed.layers[-1].bias, 0)
 
-        if dec_pred_bbox_embed_share:
-            box_embed_layerlist = [_bbox_embed for i in range(transformer.num_decoder_layers)]
+        if config.dec_pred_bbox_embed_share:
+            box_embed_layerlist = [_bbox_embed for i in range(self.transformer.num_decoder_layers)]
         else:
             box_embed_layerlist = [
-                copy.deepcopy(_bbox_embed) for i in range(transformer.num_decoder_layers)
+                copy.deepcopy(_bbox_embed) for i in range(self.transformer.num_decoder_layers)
             ]
-        class_embed_layerlist = [_class_embed for i in range(transformer.num_decoder_layers)]
+        class_embed_layerlist = [_class_embed for i in range(self.transformer.num_decoder_layers)]
         self.bbox_embed = nn.LayerList(box_embed_layerlist)
         self.class_embed = nn.LayerList(class_embed_layerlist)
         self.transformer.decoder.bbox_embed = self.bbox_embed
         self.transformer.decoder.class_embed = self.class_embed
 
         # two stage
-        self.two_stage_type = two_stage_type
-        assert two_stage_type in ["no", "standard"], "unknown param {} of two_stage_type".format(
-            two_stage_type
+        assert config.two_stage_type in ["no", "standard"], "unknown param {} of two_stage_type".format(
+            config.two_stage_type
         )
-        if two_stage_type != "no":
-            if two_stage_bbox_embed_share:
-                assert dec_pred_bbox_embed_share
+        if config.two_stage_type != "no":
+            if config.two_stage_bbox_embed_share:
+                assert config.dec_pred_bbox_embed_share
                 self.transformer.enc_out_bbox_embed = _bbox_embed
             else:
                 self.transformer.enc_out_bbox_embed = copy.deepcopy(_bbox_embed)
 
-            if two_stage_class_embed_share:
-                assert dec_pred_bbox_embed_share
+            if config.two_stage_class_embed_share:
+                assert config.dec_pred_bbox_embed_share
                 self.transformer.enc_out_class_embed = _class_embed
             else:
                 self.transformer.enc_out_class_embed = copy.deepcopy(_class_embed)
@@ -209,29 +181,19 @@ class GroundingDINO(nn.Layer):
     def init_ref_points(self, use_num_queries):
         self.refpoint_embed = nn.Embedding(use_num_queries, self.query_dim)
 
-    def forward(self, 
-                x: paddle.Tensor, 
-                m: paddle.Tensor,
-                input_ids:paddle.Tensor,
-                attention_mask:paddle.Tensor,
-                text_self_attention_masks:paddle.Tensor,
-                position_ids:paddle.Tensor = None,
-                targets: List = None):
-        """The forward expects a NestedTensor, which consists of:
-           - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
-           - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
 
-        It returns a dict with the following elements:
-           - "pred_logits": the classification logits (including no-object) for all queries.
-                            Shape= [batch_size x num_queries x num_classes]
-           - "pred_boxes": The normalized boxes coordinates for all queries, represented as
-                           (center_x, center_y, width, height). These values are normalized in [0, 1],
-                           relative to the size of each individual image (disregarding possible padding).
-                           See PostProcess for information on how to retrieve the unnormalized bounding box.
-           - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
-                            dictionnaries containing the two above keys for each decoder layer.
-        """
-       
+    def forward(
+        self,
+        x: paddle.Tensor, 
+        m: paddle.Tensor,
+        input_ids:paddle.Tensor,
+        attention_mask:paddle.Tensor,
+        text_self_attention_masks:paddle.Tensor,
+        position_ids:paddle.Tensor = None,
+        targets: List = None
+        
+    ):
+      
         tokenized = {
             "input_ids": input_ids,
             "attention_mask":attention_mask,
@@ -250,6 +212,8 @@ class GroundingDINO(nn.Layer):
      
         encoded_text = self.feat_map(bert_output["last_hidden_state"])  # bs, 195, d_model
         text_token_mask = tokenized["attention_mask"].cast(paddle.bool)  # bs, 195
+        # text_token_mask: True for nomask, False for mask
+        # text_self_attention_masks: True for nomask, False for mask
         
         if encoded_text.shape[1] > self.max_text_len:
             encoded_text = encoded_text[:, : self.max_text_len, :]
@@ -266,13 +230,13 @@ class GroundingDINO(nn.Layer):
             "text_self_attention_masks": text_self_attention_masks,  # bs, 195,195
         }
        
-        
         features,feat_masks,poss = self.backbone(x,m)
       
         
         srcs = []
         masks = []
         for l, src in enumerate(features):
+            # src, mask = feat.decompose()
             srcs.append(self.input_proj[l](src))
             masks.append(feat_masks[l])
             # assert mask is not None
@@ -281,11 +245,13 @@ class GroundingDINO(nn.Layer):
             _len_srcs = len(srcs)
             for l in range(_len_srcs, self.num_feature_levels):
                 if l == _len_srcs:
+                    # src = self.input_proj[l](features[-1].tensors)
                     src = self.input_proj[l](features[-1])
                 else:
                     src = self.input_proj[l](srcs[-1])
                 # m = samples.mask
                 mask = F.interpolate(m[None].cast(paddle.float32), size=src.shape[-2:]).cast(paddle.bool)[0]
+                # pos_l = self.backbone[1](NestedTensor(src, mask)).cast(src.dtype)
                 pos_l = self.backbone[1](mask).cast(src.dtype)
                 srcs.append(src)
                 masks.append(mask)
@@ -316,49 +282,5 @@ class GroundingDINO(nn.Layer):
         )
 
         out = {"pred_logits": outputs_class[-1], "pred_boxes": outputs_coord_list[-1]}
+
         return out
-
-    def _set_aux_loss(self, outputs_class, outputs_coord):
-        # this is a workaround to make torchscript happy, as torchscript
-        # doesn't support dictionary with non-homogeneous values, such
-        # as a dict having both a Tensor and a list.
-        return [
-            {"pred_logits": a, "pred_boxes": b}
-            for a, b in zip(outputs_class[:-1], outputs_coord[:-1])
-        ]
-
-
-@MODULE_BUILD_FUNCS.registe_with_name(module_name="groundingdino")
-def build_groundingdino(args):
-
-    backbone = build_backbone(args)
-    transformer = build_transformer(args)
-
-    dn_labelbook_size = args.dn_labelbook_size
-    dec_pred_bbox_embed_share = args.dec_pred_bbox_embed_share
-    sub_sentence_present = args.sub_sentence_present
-
-    model = GroundingDINO(
-        backbone,
-        transformer,
-        num_queries=args.num_queries,
-        aux_loss=True,
-        iter_update=True,
-        query_dim=4,
-        num_feature_levels=args.num_feature_levels,
-        nheads=args.nheads,
-        dec_pred_bbox_embed_share=dec_pred_bbox_embed_share,
-        two_stage_type=args.two_stage_type,
-        two_stage_bbox_embed_share=args.two_stage_bbox_embed_share,
-        two_stage_class_embed_share=args.two_stage_class_embed_share,
-        num_patterns=args.num_patterns,
-        dn_number=0,
-        dn_box_noise_scale=args.dn_box_noise_scale,
-        dn_label_noise_ratio=args.dn_label_noise_ratio,
-        dn_labelbook_size=dn_labelbook_size,
-        text_encoder_type=args.text_encoder_type,
-        sub_sentence_present=sub_sentence_present,
-        max_text_len=args.max_text_len,
-    )
-
-    return model
