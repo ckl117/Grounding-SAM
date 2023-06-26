@@ -20,16 +20,7 @@ import paddle
 
 from paddleseg.utils import logger, utils
 from paddleseg.deploy.export import WrappedModel
-from segment_anything.modeling.sam_models import SamVitB, SamVitH, SamVitL
-
-model_link = {
-    'SamVitH':
-    "https://bj.bcebos.com/paddleseg/dygraph/paddlesegAnything/vit_h/model.pdparams",
-    'SamVitL':
-    "https://bj.bcebos.com/paddleseg/dygraph/paddlesegAnything/vit_l/model.pdparams",
-    'SamVitB':
-    "https://bj.bcebos.com/paddleseg/dygraph/paddlesegAnything/vit_b/model.pdparams"
-}
+from segment_anything.modeling.sam_models import SamModel
 
 
 def parse_args():
@@ -68,9 +59,7 @@ def main(args):
     utils.show_env_info()
     os.environ['PADDLESEG_EXPORT_STAGE'] = 'True'
 
-    # save model
-    model = eval(args.model_type)(checkpoint=args.checkpoint_path,
-                                  input_type=args.input_type)
+    model = SamModel.from_pretrained(args.model_type,input_type=args.input_type)
 
     shape = [None, 3, None, None] if args.input_img_shape is None \
         else args.input_img_shape
