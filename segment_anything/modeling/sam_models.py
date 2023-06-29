@@ -112,6 +112,10 @@ class SamModel(SamPretrainedModel):
             return 'gpu'
         else:
             return 'cpu'
+    
+    def reset_img(self):
+        self.features = None
+        self.set_image = False
 
     def transforms(
             self,
@@ -236,7 +240,7 @@ class SamModel(SamPretrainedModel):
         points = (coords_paddle, labels_paddle)
         import time
         a = time.time()
-        if self.set_image == False:
+        if self.set_image == False or x is not None:
             self.features = self.image_encoder(x)  # [1, 3, 1024, 1024]
             # print("image_encoder shape", self.features.shape) # [1, 256, 64, 64]
             self.set_image = True
@@ -263,7 +267,7 @@ class SamModel(SamPretrainedModel):
     
     @paddle.no_grad()
     def prompt_forward_box(self, x=None, box_paddle=None):
-        if self.set_image == False and x is not None:
+        if self.set_image == False or x is not None:
             self.features = self.image_encoder(x)
             self.set_image = True
            
@@ -326,37 +330,3 @@ class SamModel(SamPretrainedModel):
         return masks
 
 
-# class SamVitH(SAM):
-#     def __init__(self,
-#                  encoder_embed_dim=1280,
-#                  encoder_depth=32,
-#                  encoder_num_heads=16,
-#                  encoder_global_attn_indexes=[7, 15, 23, 31],
-#                  checkpoint=None,
-#                  input_type=None):
-#         super().__init__(encoder_embed_dim, encoder_depth, encoder_num_heads,
-#                          encoder_global_attn_indexes, checkpoint, input_type)
-
-
-# class SamVitL(SAM):
-#     def __init__(self,
-#                  encoder_embed_dim=1024,
-#                  encoder_depth=24,
-#                  encoder_num_heads=16,
-#                  encoder_global_attn_indexes=[5, 11, 17, 23],
-#                  checkpoint=None,
-#                  input_type=None):
-#         super().__init__(encoder_embed_dim, encoder_depth, encoder_num_heads,
-#                          encoder_global_attn_indexes, checkpoint, input_type)
-
-
-# class SamVitB(SAM):
-#     def __init__(self,
-#                  encoder_embed_dim=768,
-#                  encoder_depth=12,
-#                  encoder_num_heads=12,
-#                  encoder_global_attn_indexes=[2, 5, 8, 11],
-#                  checkpoint=None,
-#                  input_type=None):
-#         super().__init__(encoder_embed_dim, encoder_depth, encoder_num_heads,
-#                          encoder_global_attn_indexes, checkpoint, input_type)

@@ -85,7 +85,7 @@ class ImageEncoderViT(nn.Layer):
                 dtype='float32',
                 default_initializer=nn.initializer.Constant(value=0.0))
             # self.pos_embed = nn.Parameter(paddle.zeros(1, img_size // patch_size, img_size // patch_size, embed_dim))
-
+        
         self.blocks = nn.LayerList()
         for i in range(depth):
             block = Block(
@@ -353,8 +353,10 @@ def get_rel_pos(q_size: int, k_size: int,
     k_coords = paddle.arange(end=k_size)[None, :] * max(q_size / k_size, 1.0)
     relative_coords = (q_coords - k_coords) + (k_size - 1) * max(q_size /
                                                                  k_size, 1.0)
-
-    return rel_pos_resized[relative_coords.cast('int64')]
+    h,w = relative_coords.shape
+    
+    return paddle.index_select(rel_pos_resized,relative_coords.cast('int64').flatten()).reshape((h,w,-1))
+  
 
 
 def add_decomposed_rel_pos(

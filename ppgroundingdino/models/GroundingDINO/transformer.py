@@ -321,12 +321,13 @@ class Transformer(nn.Layer):
                 arr=enc_outputs_coord_unselected,
                 axis=1,
                 indices=topk_ind)
+        
             refpoint_embed_ = refpoint_embed_undetach.detach()
             init_box_proposal = F.sigmoid(paddle.take_along_axis(
                 arr=output_proposals,
                 axis=1,
                 indices=topk_ind)) 
-  
+    
             tgt_undetach = paddle.take_along_axis(arr=output_memory, axis=1,indices=topk_proposals.unsqueeze(axis=-1).tile(repeat_times=[1, 1, self.d_model]))
 
             # gather boxes

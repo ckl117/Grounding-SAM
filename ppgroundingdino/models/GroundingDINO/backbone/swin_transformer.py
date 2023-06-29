@@ -346,9 +346,10 @@ class WindowAttention(nn.Layer):
         q = q * self.scale
         attn = paddle.mm(q, k.transpose([0, 1, 3, 2]))
         index = self.relative_position_index.flatten()
-
+      
         relative_position_bias = paddle.index_select(
             self.relative_position_bias_table, index)
+        
         relative_position_bias = relative_position_bias.reshape([
             self.window_size[0] * self.window_size[1],
             self.window_size[0] * self.window_size[1], -1
@@ -798,7 +799,7 @@ class SwinTransformerModel(SwinTransformerPretrainedModel):
                 param.stop_gradient = True
 
         if self.frozen_stages >= 1 and self.ape:
-            self.absolute_pos_embed.stop_gradient = True
+            self.absolute_pos_embed.stop_gradient = Trueƒ
 
         if self.frozen_stages >= 2:
             self.pos_drop.eval()

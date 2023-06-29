@@ -139,6 +139,7 @@ class DinoSamInfer():
      
     
     def preprocess(self,image_pil):
+   
         # load image
         image = load_image(image_pil)
         caption = self.args.text_prompt.lower()
@@ -159,6 +160,7 @@ class DinoSamInfer():
 
     def get_grounding_output(self,with_logits=True):
         with paddle.no_grad():
+
             outputs = self.dino_model(self.image,self.mask, input_ids=self.tokenized['input_ids'],
                             attention_mask=self.tokenized['attention_mask'],text_self_attention_masks=self.tokenized['text_self_attention_masks'],
                             position_ids=self.tokenized['position_ids'])
@@ -202,10 +204,11 @@ class DinoSamInfer():
             boxes.append([x0, y0, x1, y1])
        
         boxes = np.array(boxes)
+     
         transformed_boxes = self.sam_model.preprocess_prompt(point_coords=None, point_labels=None, box=boxes)
         seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
-        
-       
+     
+               
         return seg_masks
 
     def postprocess(self,mask):
