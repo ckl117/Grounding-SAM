@@ -6,7 +6,7 @@ import numpy as np
 import paddle
 import paddle.nn.functional as F
 from PIL import Image, ImageDraw, ImageFont
-
+import time
 import ppgroundingdino.datasets.transforms as T
 from ppgroundingdino.models.GroundingDINO.groundingdino import GroundingDinoModel
 from ppgroundingdino.util import box_ops,get_tokenlizer
@@ -164,9 +164,31 @@ class DinoSamInfer():
             outputs = self.dino_model(self.image,self.mask, input_ids=self.tokenized['input_ids'],
                             attention_mask=self.tokenized['attention_mask'],text_self_attention_masks=self.tokenized['text_self_attention_masks'],
                             position_ids=self.tokenized['position_ids'])
+        
+
+        
+        for i in range(10):
+            with paddle.no_grad():
+                outputs = self.dino_model(self.image,self.mask, input_ids=self.tokenized['input_ids'],
+                                attention_mask=self.tokenized['attention_mask'],text_self_attention_masks=self.tokenized['text_self_attention_masks'],
+                                position_ids=self.tokenized['position_ids'])
+            paddle.device.cuda.synchronize()
+        total_time = 0
+        for i in range(40):
+            start = time.time()
+            with paddle.no_grad():
+                outputs = self.dino_model(self.image,self.mask, input_ids=self.tokenized['input_ids'],
+                                attention_mask=self.tokenized['attention_mask'],text_self_attention_masks=self.tokenized['text_self_attention_masks'],
+                                position_ids=self.tokenized['position_ids'])
+            paddle.device.cuda.synchronize()
+            end = time.time()
+            total_time = total_time + end - start
+            time.sleep(0.1)
+        print(f'dino infer time = {total_time * 1000 / 40} ms')
+
         logits = F.sigmoid(outputs["pred_logits"])[0]  # (nq, 256)
         boxes = outputs["pred_boxes"][0]  # (nq, 4)
-
+        
         # filter output
         logits_filt = logits.clone()
         boxes_filt = boxes.clone()
@@ -206,7 +228,21 @@ class DinoSamInfer():
         boxes = np.array(boxes)
      
         transformed_boxes = self.sam_model.preprocess_prompt(point_coords=None, point_labels=None, box=boxes)
-        seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
+
+        # seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
+
+        for i in range(10):
+            seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
+            paddle.device.cuda.synchronize()
+        total_time = 0
+        for i in range(40):
+            start = time.time()
+            seg_masks = self.sam_model(img=self.image_seg,prompt=transformed_boxes)
+            paddle.device.cuda.synchronize()
+            end = time.time()
+            total_time = total_time + end - start
+            time.sleep(0.2)
+        print(f'sam infer time = {total_time * 1000 / 40} ms')
      
                
         return seg_masks
@@ -296,12 +332,15 @@ if __name__ == "__main__":
             if args.run_benchmark and i>=10:
                 autolog.times.start()
             pipe.preprocess(image_pil)
+            paddle.device.cuda.synchronize()
             if args.run_benchmark and i>=10:
                 autolog.times.stamp()
             seg_masks = pipe.run()
+            paddle.device.cuda.synchronize()
             if args.run_benchmark and i>=10:
                 autolog.times.stamp()
             init_mask = pipe.postprocess(seg_masks)
+            paddle.device.cuda.synchronize()
             if args.run_benchmark and i>=10:
                 autolog.times.end(stamp=True)
         if args.run_benchmark:
